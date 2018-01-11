@@ -33,9 +33,7 @@
         'codeLens/resolve'/3,
         'textDocument/documentLink'/3,
         'documentLink/resolve'/3,
-        'textDocument/rename'/3,
-
-        default_answer/1
+        'textDocument/rename'/3
 ]).
 
 -record(state, {
@@ -55,20 +53,9 @@
         }).
 
 -define(DEBUG, true).
-
--ifdef(DEBUG).
--define(DEBUG(F, A), io:format(F, A)).
--else.
--define(DEBUG(F, A), ok).
--endif.
-
--include("sourcer_db.hrl").
 -include("debug.hrl").
 
--define(OPEN_PAREN, <<"(">>).
--define(CLOSE_PAREN, <<")">>).
--define(OPEN_CURLY, <<"{">>).
--define(CLOSE_CURLY, <<"}">>).
+-include("sourcer_db.hrl").
 
 'initialize'(InitializeParams) ->
     %% TODO: should use internal format, to be converted by LSP layer
@@ -80,7 +67,7 @@
             triggerCharacters => [<<":">>, <<"?">>, <<"#">>]
             },
         signatureHelpProvider => #{
-            triggerCharacters => [?OPEN_PAREN]
+            triggerCharacters => [?LPAR]
             },
         definitionProvider => true,
         referencesProvider => true,
@@ -94,8 +81,8 @@
         documentFormattingProvider => true,
         documentRangeFormattingProvider => true,
         documentOnTypeFormattingProvider => #{
-            firstTriggerCharacter => ?CLOSE_CURLY,
-            moreTriggerCharacters => [?CLOSE_CURLY,<<";">>,<<".">>]
+            firstTriggerCharacter => ?RCURL,
+            moreTriggerCharacters => [?RCURL,<<";">>,<<".">>]
             },
         renameProvider => true,
         documentLinkProvider => #{resolveProvider => false},
@@ -127,11 +114,10 @@
     State#state{watched_files=NewWatched}.
 
 'workspace/didChangeWorkspaceFolders'(State, _Changes) ->
-    ?DEBUG("!!!!!!!!!!!!!!!!!!!! workspaces ~p", [_Changes]),
     State.
 
 'textDocument/didOpen'(State, #{textDocument:=Item}) ->
-    ?DEBUG("OPEN::~p~n", [Item]),
+    ?D({open, Item}),
     #{uri:=URI, text:=Text}=Item,
     Open = State#state.open_files,
     NewOpen = sourcer_documents:open_file(State#state.open_files, URI, Text),
@@ -139,7 +125,7 @@
 
 %% TODO: this is for full sync, handle incremental changes too
 'textDocument/didChange'(State, #{textDocument:=Item}, Changes) ->
-    ?DEBUG("CHANGE::~p -- ~p~n", [Item, Changes]),
+    ?D({change, Item, Changes}),
     #{uri:=URI} = Item,
     %% TODO: start parsing & processing
     NewOpen = sourcer_documents:update_file(State#state.open_files, URI, Changes),
@@ -176,9 +162,9 @@
 
 'textDocument/completion'(_State, #{textDocument:=#{uri:=URI}, position:=Position}, Reporter) ->
     Res = #{
-      isIncomplete => false,
-      items => []
-     },
+        isIncomplete => false,
+        items => []
+    },
     Reporter({value, Res}).
 
 'completionItem/resolve'(_State, Item, Reporter) ->
@@ -186,19 +172,22 @@
     Reporter({value, Res}).
 
 'textDocument/hover'(State, #{textDocument:=#{uri:=URI}, position:=Position}, Reporter) ->
-    Source = sourcer_documents:get_element(State#state.open_files, URI, Position),
+    Pos = sourcer_util:get_pos(Position),
+    {Model, _} = sourcer_documents:get_model(State#state.open_files, URI),
+    Source = sourcer_db:get_element_at_pos(Model, Pos),
     %% [markedstring()]:: String (=markdown)
+    Hover = sourcer_util:get_hover(Source),
     Res = #{
-      contents => []
-     %%, range => lsp_utils:range(_Position, _Position)
-     },
+        contents => unicode:characters_to_binary(Hover)
+        %%, range => lsp_utils:range(_Position, _Position)
+    },
     Reporter({value, Res}).
 
 'textDocument/references'(State, #{textDocument:=#{uri:=URI}, position:=Position, context:=Context}, Reporter) ->
-    Source = sourcer_documents:get_element(State#state.open_files, URI, Position),
-    {Refs, _} = sourcer_documents:get_model(State#state.open_files, URI),
-    ?DEBUG("SOURCE=~p~nRREEFF: ~p~n", [Source, Refs]),
-    Res = convert_refs(Refs, URI),
+    Pos = sourcer_util:get_pos(Position),
+    {Model, _} = sourcer_documents:get_model(State#state.open_files, URI),
+    Source = sourcer_db:get_element_at_pos(Model, Pos),
+    Res = [], % TODO convert_refs(Refs, URI),
     Reporter({value, Res}).
 
 'textDocument/documentHighlight'(_State, _Args, Reporter) ->
@@ -208,25 +197,35 @@
 'textDocument/documentSymbol'(State, #{textDocument:=#{uri:=URI}}, Reporter) ->
     ?D(State),
     XX = sourcer_documents:get_model(State#state.open_files, URI),
-    ?DEBUG("SYM URI=~p~nSTATE=~p~n", [URI, XX]),
+    ?D({sym, URI, XX}),
     {Refs, _} = XX,
-    Res = convert_refs(Refs, URI),
+    Res = sourcer_util:convert_refs(Refs, URI),
     Reporter({value, Res}).
 
 'textDocument/definition'(State, #{textDocument:=#{uri:=URI}, position:=Position}, Reporter) ->
-    Source = sourcer_documents:get_element(State#state.open_files, URI, Position),
-    ?D(Source),
+    Pos = sourcer_util:get_pos(Position),
     {Model, _} = sourcer_documents:get_model(State#state.open_files, URI),
-    D = find_def(Source, Model#model.defs),
-    Res = #{uri=>URI, range=>range(element(2, D))},
+    {_, Source} = sourcer_db:get_element_at_pos(Model, Pos),
+    ?D(Source),
+    Res = case Source of
+        [Item] ->
+            case sourcer_util:find_def(Source, Model#model.defs) of
+                {_,P,_,_} ->
+                    #{uri=>URI, range=>sourcer_util:range(P)};
+                _ ->
+                    []
+            end;
+        [] ->
+            []
+    end,
     Reporter({value, Res}).
 
 'textDocument/signatureHelp'(_State, _Args, Reporter) ->
     Res = #{
-      signatures => [],
-      activeSignature => null,
-      activeParameter => null
-      },
+        signatures => [],
+        activeSignature => null,
+        activeParameter => null
+    },
     Reporter({value, Res}).
 
 'textDocument/rename'(_State, _Args, Reporter) ->
@@ -265,78 +264,3 @@
 'documentLink/resolve'(_State, _Args, Reporter) ->
     Res = #{},
     Reporter({value, Res}).
-
-%%%%%%%%%%%%%%%%%
-
-find_def(Src, L) ->
-    hd(L).
-
-default_answer(completion) ->
-    null;
-default_answer(completion_resolve) ->
-    null;
-default_answer(hover) ->
-    null;
-default_answer(signature_help) ->
-    null;
-default_answer(_) ->
-    [].
-
-range({{L1,C1},{L2,C2}}) ->
-    ?D({{L1,C1},{L2,C2}}),
-    #{
-        start=>#{line=>L1, character=>C1-1},
-        'end'=>#{line=>L2, character=>C2-1}
-    }.
-
-convert_refs(Model, URI) ->
-    #model{refs=Refs, defs=Defs} = Model,
-    ?DEBUG("REFS===~p~n----~n", [Refs]),
-    [
-        begin
-            #{
-            name=>print_name(Key),
-            kind=>kind(element(1, Key)),
-            location=>#{
-                uri=>URI,
-                range=>range(Pos)
-                }
-            }
-        end ||
-        {Key,Pos} <- Refs++Defs].
-
-print_name(Data) ->
-    case Data of
-        {function, _, F, A} ->
-            iolist_to_binary(io_lib:format("~s/~w", [F, A]));
-        {macro, _, M, A} ->
-            case A of
-                -1 ->
-                    iolist_to_binary(io_lib:format("?~s", [M]));
-                _ ->
-                    iolist_to_binary(io_lib:format("?~s/~w", [M, A]))
-            end;
-        {var, _, N} ->
-            iolist_to_binary(io_lib:format("~s", [N]));
-        _ ->
-            iolist_to_binary(io_lib:format("~p", [Data]))
-    end.
-
-kind(E) ->
-    case lists:keyfind(E, 1, lsp_data:get_data(symbol)) of
-        false ->
-            2;
-        {_, N} ->
-            N
-    end.
-
-encode_file_changes(Changes) ->
-    [encode_file_change(X) || X<-Changes].
-
-encode_file_change(#{type:=1}=Change) ->
-    Change#{type=>created};
-encode_file_change(#{type:=2}=Change) ->
-    Change#{type=>changed};
-encode_file_change(#{type:=3}=Change) ->
-    Change#{type=>deleted}.
-

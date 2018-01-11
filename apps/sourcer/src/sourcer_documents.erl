@@ -6,18 +6,16 @@
     update_file/3,
     get_text/2,
     get_model/2,
-    parse_file/2,
     process_file/2,
     process_watched/2,
-    get_element/3,
     get_line_at_offset/2,
     get_line_info/2
 ]).
 
 -define(DEBUG, true).
+-include("debug.hrl").
 
 -include("sourcer_db.hrl").
--include("debug.hrl").
 
 get_sync_value() ->
     1.
@@ -46,16 +44,8 @@ get_model(State, URI) ->
             []
     end.
 
-parse_file(File, Text) ->
-    TText = unicode:characters_to_list(Text),
-    Mod = list_to_atom(unicode:characters_to_list(File)),
-    {ok, Toks, _} = sourcer_scan:string(TText),
-    Forms = sourcer_parse:parse(Toks),
-    Db = sourcer_db:analyze(Forms),
-    Db.
-
 process_file(URI, Text) ->
-    {parse_file(URI, Text), get_line_info(Text)}.
+    {sourcer_db:analyse_text(Text), get_line_info(Text)}.
 
 process_watched(#{uri:=URI, type:=1}, List) ->
     %% TODO: start parsing & processing
@@ -65,19 +55,6 @@ process_watched(#{uri:=_URI, type:=2}, List) ->
     List;
 process_watched(#{uri:=URI, type:=3}, List) ->
     lists:delete(URI, List).
-
-get_element(Data, URI, #{character:=C, line:=L}) ->
-    Model = get_model(Data, URI),
-    
-    %Lines = sourcer_scan:line_info(Data#)
-    %{Ofs,Len,_} = get_line_info(L, Lines),
-    %% FIXME!
-    Refs2 = [], 
-    %io:format("refs2 ~p ~n", [Refs2]),
-    case Refs2 of
-        [] -> [];
-        _ -> lists:last(Refs2)
-    end.
 
 get_line_info(Text) ->
     ?D(Text),
