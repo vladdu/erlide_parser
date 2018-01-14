@@ -188,10 +188,21 @@
 'textDocument/hover'(State, #{textDocument:=#{uri:=URI}, position:=Position}, Reporter) ->
     Source = sourcer_documents:get_element(State#state.open_files, URI, Position),
     %% [markedstring()]:: String (=markdown)
-    Res = #{
-      contents => []
-     %%, range => lsp_utils:range(_Position, _Position)
-     },
+    El = 
+        case Source of
+            {Ctx, _, R, _} -> {Ctx, R};
+            {Ctx, R, _} -> {Ctx, R};
+            {Ctx, R} -> {Ctx, R};
+            _ -> []
+        end,
+    Res = 
+        case El of 
+            {Contents, Range} -> #{ 
+                contents => print_full_name(sourcer_util:take_right(Contents, 2)), 
+                range => range(Range) 
+            };
+            _ -> #{ contents => [] }
+        end,
     Reporter({value, Res}).
 
 'textDocument/references'(State, #{textDocument:=#{uri:=URI}, position:=Position, context:=Context}, Reporter) ->
@@ -305,10 +316,16 @@ convert_refs(Model, URI) ->
         end ||
         {Key,Pos} <- Refs++Defs].
 
+print_full_name(L) -> sourcer_util:binary_join(lists:map(fun print_name/1, L), <<":">>).
+
 print_name(Data) ->
     case Data of
+        {module, F} ->
+            iolist_to_binary(io_lib:format("~s", [F]));
         {function, _, F, A} ->
             iolist_to_binary(io_lib:format("~s/~w", [F, A]));
+        {function, F, A} ->
+            iolist_to_binary(io_lib:format("~s/~w", [F, A]));    
         {macro, _, M, A} ->
             case A of
                 -1 ->

@@ -51,7 +51,7 @@ parse_file(File, Text) ->
     Mod = list_to_atom(unicode:characters_to_list(File)),
     {ok, Toks, _} = sourcer_scan:string(TText),
     Forms = sourcer_parse:parse(Toks),
-    Db = sourcer_db:analyze(Forms),
+    Db = sourcer_db:analyse(Forms),
     Db.
 
 process_file(URI, Text) ->
@@ -68,12 +68,12 @@ process_watched(#{uri:=URI, type:=3}, List) ->
 
 get_element(Data, URI, #{character:=C, line:=L}) ->
     Model = get_model(Data, URI),
-    
-    %Lines = sourcer_scan:line_info(Data#)
-    %{Ofs,Len,_} = get_line_info(L, Lines),
-    %% FIXME!
-    Refs2 = [], 
-    %io:format("refs2 ~p ~n", [Refs2]),
+    {#model{defs=D, refs=R}, _} = Model,
+    Fun =
+        fun({_,{{SL, SC},{EL, EC}},_,_}) when SL =< L, SC =< C, EL >= L, EC >= C -> true; %defs
+        ({_, {{SL, SC},{EL, EC}}}) when SL =< L, SC =< C, EL >= L, EC >= C -> true; %refs
+        (_)-> false end,
+    Refs2 = lists:filter(Fun, D ++ R),
     case Refs2 of
         [] -> [];
         _ -> lists:last(Refs2)
