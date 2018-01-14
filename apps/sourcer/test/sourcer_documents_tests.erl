@@ -54,22 +54,22 @@ parse_file_test_1() ->
         ?_assertEqual(TextLines, Chunks)
     ].
 
-get_element_test_000() ->
+get_element_test_() ->
     Text = text(),
-    {ok, AST, Refs, Lines} = sourcer_documents:parse_file("foo1", Text),
-    Open = [{<<"foo">>, Text, {AST, Refs, Lines}}],
+    Model = sourcer_documents:parse_file("foo1", Text),
+    Open = [{<<"foo">>, Text, {Model, []}}],
     [
         ?_assertMatch([],
                         sourcer_documents:get_element(Open, <<"foo">>, #{line=>0, character=>0})
                     ),
-        ?_assertMatch({ref,{module_def,"foo"},1,13,module,-3,[],false},
-                        sourcer_documents:get_element(Open, <<"foo">>, #{line=>1, character=>1})
+        ?_assertMatch({[{module,foo}],{{1,9},{1,12}},none,#{}},
+                        sourcer_documents:get_element(Open, <<"foo">>, #{line=>1, character=>9})
                     ),
-        ?_assertMatch({ref,{function_def,bar,0},15,3,bar,0,[],false},
+        ?_assertMatch({[{module,foo},{function,bar,0}],{{2,1},{2,4}},{{2,1},{3,11}},#{}},
                         sourcer_documents:get_element(Open, <<"foo">>, #{line=>2, character=>1})
                     ),
-        ?_assertMatch({ref,{function_def,quz,1},36,3,quz,1,[],false},
-                        sourcer_documents:get_element(Open, <<"foo">>, #{line=>5, character=>1})
+        ?_assertMatch({[{module,foo},{function,quz,1}],{{4,1},{4,4}},{{4,1},{7,7}},#{}},
+                        sourcer_documents:get_element(Open, <<"foo">>, #{line=>4, character=>1})
                     )
     ].
 
