@@ -1,7 +1,8 @@
 -module(sourcer_util).
 
 -export([pack/1, unpack/1, join/2]).
--export([reverse2/1]).
+-export([reverse2/1, take_right/2]).
+-export([binary_join/2]).
 
 -export([get_auto_imported/1, add_auto_imported/1]).
 
@@ -38,3 +39,17 @@ get_auto_imported(Prefix) when is_list(Prefix) ->
             error
     end.
 
+take_right(L, N) ->
+  lists:reverse(lists:sublist(lists:reverse(L), N)).    
+
+binary_join([], _Sep) ->
+  <<>>;
+binary_join([Part], _Sep) ->
+  Part;
+binary_join(List, Sep) ->
+  lists:foldr(fun(A, B) ->
+    if
+      bit_size(B) > 0 -> <<A/binary, Sep/binary, B/binary>>;
+      true -> A
+    end 
+              end, <<>>, List).

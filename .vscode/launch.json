@@ -1,5 +1,12 @@
 {
     "version": "0.1.0",
     "configurations": [
+        {
+            "name": "LSP",
+            "type": "erlang",
+            "request": "launch",
+            "cwd": "${workspaceRoot}",
+            "arguments": "-pa _build/default/lib/*/ebin -eval \"erlang_ls:main([])\""
+        }
     ]
 }
