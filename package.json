@@ -1,0 +1,24 @@
+{
+  "name": "sourcer",
+  "version": "0.3.0",
+  "description": "Wrap the Erlang language server as a npm package.",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "preinstall": "chmod ug+x npm_install.sh && ./npm_install.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/erlang/sourcer.git"
+  },
+  "keywords": [
+    "erlang"
+  ],
+  "author": "Vlad Dumitrescu <vladdu55@gmail.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/erlang/sourcer/issues"
+  },
+  "homepage": "https://github.com/erlang/sourcer#readme"
+}

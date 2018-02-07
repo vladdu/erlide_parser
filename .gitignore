@@ -3,4 +3,4 @@ erl_crash.dump
 *.refs
 *.scan
 tmp/
-erlang_ls
+/erlang_ls
