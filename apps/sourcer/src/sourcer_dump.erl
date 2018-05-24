@@ -25,8 +25,18 @@ dump_project(Dir, Fmt, Out) ->
     ?D(Dir),
     [Layout] = sourcer_layout:detect_layout(Dir),
     ?D(Layout),
-    {ok, Files1} = file:list_dir(filename:join(Dir, Layout#project.sources)),
-    {ok, Files2} = file:list_dir(filename:join(Dir, Layout#project.includes)),
+    Files1 = case file:list_dir(filename:join(Dir, Layout#project.sources)) of
+        {ok, X} ->
+            X;
+        _ ->
+            []
+        end,
+    Files2 = case file:list_dir(filename:join(Dir, Layout#project.includes)) of 
+        {ok, Y} ->
+            Y;
+        _ ->
+            []
+        end,
     AllFiles = [filename:join([Dir, Layout#project.sources, F]) || F<-Files1]
         ++ [filename:join([Dir, Layout#project.includes, F]) || F<-Files2],
     dump_files(AllFiles, Fmt, Out),
@@ -94,7 +104,7 @@ dump_s101(Files, Out) ->
                 ?NL
             ]},
             XML = xmerl:export_simple([?NL,Data], xmerl_xml),
-            io:format("~s~n", [lists:flatten(XML)]);
+            io:format(Out, "~s~n", [lists:flatten(XML)]);
         Err ->
             io:format("~p~n", [Err])
     end.
