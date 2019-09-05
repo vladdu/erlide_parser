@@ -1,0 +1,22 @@
+name: Erlang CI
+
+on: [push]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install dependencies
+      run: ./rebar3 get-deps
+    - name: Compile
+      run: ./rebar3 compile
+    - name: Run tests
+      run: ./rebar3 skip_deps=true eunit
+    - name: Report coverage
+      run: ./rebar3 coveralls send
+    - name: Run xref
+      run: ./rebar3 xref || true
