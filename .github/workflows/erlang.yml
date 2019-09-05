@@ -17,6 +17,6 @@ jobs:
     - name: Run tests
       run: ./rebar3 eunit
     - name: Report coverage
-      run: ./rebar3 coveralls send
+      run: echo ./rebar3 coveralls send
     - name: Run xref
       run: ./rebar3 xref || true
